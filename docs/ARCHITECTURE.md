@@ -22,7 +22,7 @@ Thermal camera -----+                                                         |
                                                           status back to laptop
 ```
 
-Only the camera preview is implemented. The rest is a proposed design.
+The camera preview and dry-run microcontroller logic are implemented. The sketch parses USB commands and models four motor outputs but drives no pins. Live H-bridge control, perception, range estimation, and the laptop command sender remain to be built.
 
 ## Perception boundary
 
@@ -39,10 +39,13 @@ Determine whether thermal output is video, raw sensor values, or calibrated temp
 | State | Motor intent | Exit |
 | --- | --- | --- |
 | DISARMED | No forward drive | Deliberate operator arm with healthy fresh input |
+| ARMED | No forward drive; command timeout active | Fresh CRUISE/SLOW command or timeout |
 | CRUISE | Tested forward setting | Far hazard, brake request, or fault |
 | SLOW | Reduced forward setting | Brake/fault, or stable clearance under hysteresis |
 | BRAKE_LATCHED | Driver-specific brake request | Operator re-arm after clearance |
 | FAULT_LATCHED | Driver-specific stop request | Fault resolved and operator re-arms |
+
+The dry-run implementation requires an explicit DISARM followed by ARM to leave a stop latch, then a fresh drive command. ARM itself never requests motion. A live backend still needs a reviewed operator-arm mechanism and reset behavior.
 
 “Immediate braking” means prompt actuation, not instantaneous physical stopping. Choose thresholds using measured speed, perception/communication delay, braking distance, and range uncertainty. Unknown in-path obstacles must not be considered safe simply because they are not classified as deer.
 

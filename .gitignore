@@ -20,3 +20,7 @@ models/
 *.pt
 *.onnx
 *.engine
+build/
+*.elf
+*.hex
+*.exe

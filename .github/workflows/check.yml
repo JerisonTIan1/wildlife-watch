@@ -13,3 +13,11 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m compileall -q wildlife_watch
       - run: python -m wildlife_watch.preview --help
+  motor-logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test controller logic
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -pedantic firmware/tests/controller_test.cpp -o /tmp/controller_test
+          /tmp/controller_test

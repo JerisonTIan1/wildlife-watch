@@ -31,7 +31,9 @@ Teammates: [marvinuofa](https://github.com/marvinuofa) and [VyomMaheshwari1](htt
 
 ## Current status
 
-The repository contains a camera/video preview utility, team workflow, and design documents. **The chassis, motor firmware, USB control link, detector, range estimator, and automatic braking are not implemented here yet.**
+The repository contains a camera/video preview utility and a **dry-run motor-controller sketch**, with USB command parsing, four-motor output intent, arming, latched stop states, and a command watchdog. The sketch compiles for Uno and classic Nano; its control logic has host tests. **It drives no motor pins.**
+
+The chassis, live H-bridge backend, laptop command sender, detector, range estimator, and physical automatic braking remain to be built. Start your Arduino work with [firmware/README.md](firmware/README.md).
 
 The preview passed synthetic-video checks. Physical-camera compatibility and physical vehicle behavior have not been verified. Two preview feeds are displayed side by side; they are not synchronized or fused.
 

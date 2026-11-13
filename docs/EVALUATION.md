@@ -1,6 +1,6 @@
 # Evaluation: perception to physical stop
 
-Current evidence: synthetic-video camera-preview checks only. **No motor control, range estimation, or automatic stopping has been validated.**
+Current evidence: synthetic-video preview checks, host tests of the motor-controller parser/state machine, and Uno/classic Nano sketch compilation. **No live motor output, range estimation, or physical automatic stopping has been validated.**
 
 ## Motor control - Jerison
 
