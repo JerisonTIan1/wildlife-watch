@@ -1,5 +1,8 @@
 # Calibrated marker distance and relative closing speed
 
+For the optional live prediction and mock-braking integration, see
+[collision demo](COLLISION_DEMO.md). The pose API remains unchanged.
+
 The existing webcam test can now estimate ID 0's translation using measured
 intrinsics, distortion and marker size. Without `--calibration`, it remains
 pixel-only. No deployment intrinsics or default 70 mm marker size are supplied.

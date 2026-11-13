@@ -185,7 +185,7 @@ def annotate(frame, targets, center, status, fps, diagnostics=()):
     return output
 
 
-def main(argv=None, on_observation=None):
+def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", type=int, default=0, help="Camera index, e.g. 0 or 1")
     parser.add_argument("--backend", choices=("auto", "dshow", "msmf"), default="auto",
@@ -246,7 +246,7 @@ def main(argv=None, on_observation=None):
             report_camera(capture, args)
         print(f"Detector profile={args.profile}; preprocessing={args.preprocess}")
         print("Calibrated pose enabled." if estimator else "Pixel coordinates only (no calibration supplied).")
-        print("No ToF, prediction or motor commands. Q/Esc exits.")
+        print("No physical motor or ToF connection. Q/Esc exits.")
         cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
         timestamps = deque(maxlen=30)
         failed_since = None
@@ -296,11 +296,15 @@ def main(argv=None, on_observation=None):
                     diagnostics.extend([f"Pose INVALID: {observation.reason}", "Distance / lateral / speed: --"])
                 if on_observation is not None:
                     on_observation(observation)
+            if extra_lines is not None:
+                diagnostics.extend(extra_lines())
             if observed_at - last_report >= 1:
                 print(f"Observed FPS {fps:.1f} | " + " | ".join(diagnostics))
                 last_report = observed_at
             cv2.imshow(WINDOW, annotate(frame, targets, center, status, fps, diagnostics))
             key = cv2.waitKey(30 if failed_since is not None else 1) & 0xFF
+            if on_key is not None:
+                on_key(key)
             if key in (ord("q"), ord("Q"), 27) or cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
                 return 0
             if failed_since is not None and now - failed_since >= 3.0:
