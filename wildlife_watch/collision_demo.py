@@ -16,6 +16,9 @@ def main(argv=None):
     parser.add_argument("--calibration", required=True)
     parser.add_argument("--marker-side-cm", required=True, type=aruco_webcam.finite_number)
     parser.add_argument("--allow-synthetic-config", action="store_true")
+    parser.add_argument("--hardware-backend", choices=("mock", "serial"), default="mock")
+    parser.add_argument("--enable-serial", action="store_true", help="Explicitly allow opening USB; documented SIM firmware only")
+    parser.add_argument("--port", help="Windows USB serial port, e.g. COM5")
     args, camera_args = parser.parse_known_args(argv)
     try:
         data = json.loads(args.config.read_text(encoding="utf-8"))
@@ -26,11 +29,23 @@ def main(argv=None):
         loss = LossConfig(**data.get("tracking_loss", {}))
         if data["synthetic"] and loss.measured_bounds:
             raise ValueError("Synthetic config cannot attest measured tracking-loss bounds")
-        demo = MockBrakingDemo(CollisionConfig(**data["collision"]), BrakingConfig(**data["braking"]), loss_config=loss)
-    except (OSError, ValueError, KeyError, TypeError) as error:
+        geometry = CollisionConfig(**data["collision"])
+        brakes = BrakingConfig(**data["braking"])
+        controller = None
+        if args.hardware_backend == "serial":
+            if not args.enable_serial or not args.port:
+                raise ValueError("Serial requires --enable-serial and --port")
+            if data["synthetic"]:
+                raise ValueError("Synthetic configuration is forbidden on USB serial")
+            if brakes.stopping_distance_cm is None or brakes.response_delay_s is None:
+                raise ValueError("Serial demo requires supplied braking bounds; use the bench utility for dry-run transport tests")
+            from .hardware.serial_controller import SerialCarController
+            controller = SerialCarController(args.port)
+        demo = MockBrakingDemo(geometry, brakes, loss_config=loss, serial_controller=controller)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError) as error:
         parser.error(str(error))
     label = "SYNTHETIC geometry/brakes" if data["synthetic"] else "User-supplied geometry/brakes; unverified"
-    print("MOCK ONLY: " + label + "; no physical motor or serial connection")
+    print(demo.backend_label + ": " + label)
     try:
         demo.start()
         return aruco_webcam.main(

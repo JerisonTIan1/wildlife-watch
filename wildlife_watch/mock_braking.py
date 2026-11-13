@@ -18,7 +18,7 @@ def synchronized(method):
 
 
 class MockBrakingDemo:
-    def __init__(self, collision_config, braking_config, clock=perf_counter, loss_config=None):
+    def __init__(self, collision_config, braking_config, clock=perf_counter, loss_config=None, serial_controller=None):
         self.lock = RLock()
         self.shutdown = Event()
         self.worker = None
@@ -27,7 +27,9 @@ class MockBrakingDemo:
         self.clock = clock
         self.predictor = CollisionPredictor(collision_config)
         self.config = braking_config
-        self.car = MockCarController(clock=clock)
+        self.serial_mode = serial_controller is not None
+        self.car = serial_controller if self.serial_mode else MockCarController(clock=clock)
+        self.backend_label = self.car.backend_label if self.serial_mode else "MOCK ONLY"
         self.risk = self.predictor.update(None, clock())
         self.brake = braking_policy(self.risk, self.config)
         self.message = "Press A to explicitly arm on fresh LOW risk"
@@ -44,14 +46,17 @@ class MockBrakingDemo:
         self.risk = self.predictor.update(observation, now)
         self.tracking.update(observation, self.risk, now)
         self.brake = braking_policy(self.risk, self.config)
-        if self.risk.risk == "UNKNOWN":
+        if self.risk.risk == "UNKNOWN" and not self.serial_mode:
             self.brake = self.tracking.provisional(now, self.config.slow_duty)
         if self.brake.level == "STOP":
             self.car.stop()
         elif self.car.state in ("ARMED", "DRIVE"):
             # No automatic increase after slowing; deliberate re-arm grants it.
             duty = min(self.brake.duty_percent, self.car.speed_percent or self.brake.duty_percent)
-            self.car.set_speed(duty)
+            if self.serial_mode:
+                self.car.set_speed(duty, expires_at=observation.timestamp_s + self.tracking.config.capture_timeout_s)
+            else:
+                self.car.set_speed(duty)
 
     @synchronized
     def tick(self):
@@ -80,7 +85,10 @@ class MockBrakingDemo:
         if self.worker is not None:
             self.worker.join(timeout=1)
         with self.lock:
-            self.car.stop()
+            if self.serial_mode:
+                self.car.close()
+            else:
+                self.car.stop()
 
     @synchronized
     def key(self, key):
@@ -110,12 +118,12 @@ class MockBrakingDemo:
         history_text = "none" if history is None else f"{history.risk}, age {now-self.tracking.history_time:.3f}s"
         conflict = "--" if self.risk.conflict_in_s is None else f"{self.risk.conflict_in_s:.2f}s"
         margin = "--" if self.brake.stopping_margin_cm is None else f"{self.brake.stopping_margin_cm:.1f} cm"
-        return [f"MOCK ONLY | Risk {self.risk.risk} | Conflict in {conflict}",
+        return [f"{self.backend_label} | Risk {self.risk.risk} | Conflict in {conflict}",
                 f"{self.tracking.state} | Observation age {pose_age}",
                 f"HISTORICAL risk: {history_text}",
                 "HISTORICAL pose: --" if pose is None else f"HISTORICAL Z {pose.distance_cm:.1f} X {pose.lateral_cm:.1f} cm",
                 f"Risk reason: {self.risk.reason}",
                 f"Policy {self.brake.level}: {self.brake.reason}",
                 f"Requested {self.brake.duty_percent}% | Stopping margin {margin}",
-                f"Mock {self.car.state} | Applied duty {self.car.speed_percent}%",
+                f"Controller {self.car.state} | Requested duty {self.car.speed_percent}%",
                 "A: explicit arm/rearm | S: latched stop", self.message]

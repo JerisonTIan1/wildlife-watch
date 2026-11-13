@@ -1,6 +1,7 @@
 # USB motor-control protocol V1
 
-The microcontroller endpoint is implemented in **dry-run mode only**. The laptop perception sender and live H-bridge output are not implemented.
+The microcontroller endpoint is implemented in **dry-run mode only**. A bounded
+Python USB sender now exists; live H-bridge output is not implemented.
 
 ## Transport and framing
 
@@ -65,4 +66,5 @@ Require deliberate operator arming and fresh perception. SLOW-to-CRUISE clearanc
 Use manual commands before perception integration. First test boot, timeout, duplicate/bad input, brake latch, and explicit recovery without motor power. Measure the actual driver behavior before enabling live outputs.
 
 Python mock and byte encoder: [hardware setup](../wildlife_watch/hardware/README.md).
-The encoder is not yet a connected, status-monitoring serial controller.
+The encoder is also used by the bounded [USB serial transport](USB_SERIAL.md).
+Status observation is not a guaranteed ACK or physical motor feedback.

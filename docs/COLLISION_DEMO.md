@@ -1,5 +1,10 @@
 # Live camera to prediction to mock braking
 
+Optional [USB serial bench/integration](USB_SERIAL.md) is now available behind
+explicit operator flags. Mock remains default. Serial mode rejects synthetic
+configurations, disables tracking-loss grace, and accepts only the documented
+SIM firmware endpoint. The instructions below describe mock operation.
+
 This MVP reuses `marker_pose.Observation`, the calibrated webcam callback and
 `MockCarController`. No serial port or physical motor controller is opened.
 Firmware, ToF, calibration and motor-driver code are unchanged.
