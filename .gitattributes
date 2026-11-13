@@ -2,3 +2,10 @@
 *.py text eol=lf
 *.md text eol=lf
 *.yml text eol=lf
+
+# CAD and mesh models are binary; preserve their bytes.
+*.SLDASM binary
+*.SLDPRT binary
+*.sldasm binary
+*.sldprt binary
+*.3mf binary

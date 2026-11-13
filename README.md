@@ -2,7 +2,7 @@
 
 **A low-cost wildlife-aware RC car that slows down or brakes when an animal crosses its path.**
 
-We are building a 3D-printed RC car with four DC motors, a top-mounted Logitech webcam, and a thermal camera. It travels forward along a straight test lane. A laptop processes the camera feeds, estimates position, distance, and severity, and sends commands over USB to a microcontroller controlling the motors through H-bridge drivers.
+We are building a 3D-printed RC car with two front-drive DC motors and two passive rear wheels, a top-mounted Logitech webcam, and a thermal camera. It travels forward along a straight test lane. A laptop processes the camera feeds, estimates position, distance, and severity, and sends commands over USB to a microcontroller controlling the motors through H-bridge drivers.
 
 This is an RC-scale demonstration of a collision-mitigation concept. It is not validated for a full-size car. There is no drone or steering in this MVP.
 
@@ -33,7 +33,7 @@ Teammates: [marvinuofa](https://github.com/marvinuofa) and [VyomMaheshwari1](htt
 
 The repository contains a camera/video preview utility and a **dry-run motor-controller sketch**, with USB command parsing, four-motor output intent, arming, latched stop states, and a command watchdog. The sketch compiles for Uno and classic Nano; its control logic has host tests. **It drives no motor pins.**
 
-The chassis, live H-bridge backend, laptop command sender, detector, range estimator, and physical automatic braking remain to be built. Start your Arduino work with [firmware/README.md](firmware/README.md).
+Editable [SolidWorks car CAD](mechanical/car/v3/) and a [240 mm reindeer mesh in 3MF format](mechanical/reindeer/) are available. The CAD uses two-motor front-wheel drive; the earlier dry-run firmware still models four motor outputs and needs reconciliation during integration. Physical chassis fit, the live H-bridge backend, laptop command sender, detector, range estimator, and automatic braking remain unvalidated. Start your Arduino work with [firmware/README.md](firmware/README.md).
 
 The preview passed synthetic-video checks. Physical-camera compatibility and physical vehicle behavior have not been verified. Two preview feeds are displayed side by side; they are not synchronized or fused.
 
@@ -61,7 +61,7 @@ Press Q or Escape to close. Video files run as fast as decoding permits; playbac
 ## Build order
 
 1. Identify the H-bridge, motor ratings, battery, and controller board; agree on the USB contract.
-2. Test one motor, then all four, using manual commands with wheels raised.
+2. Test one motor, then both drive motors, using manual commands with wheels raised.
 3. Demonstrate link-loss stopping and measure low-speed braking distance.
 4. Validate laptop detection, distance, and path relevance.
 5. Integrate cruise, slow, brake, and fault cases in a bounded test lane.
