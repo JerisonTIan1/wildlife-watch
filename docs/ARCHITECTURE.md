@@ -1,44 +1,55 @@
-# Architecture and MVP boundaries
+# RC-car architecture
 
-## Confirmed direction
+## Confirmed scope
 
-- Vehicle-mounted Logitech webcam on top of the vehicle.
-- Thermal camera available; exact model, mounting, and interface to confirm.
-- Wildlife awareness and an eventual driver warning interface.
-- No drone, autonomous driving, steering, or braking control.
+- 3D-printed chassis, four DC motors, forward-only travel along a straight test lane.
+- Top-mounted Logitech webcam and thermal camera.
+- Laptop perception with USB communication to the motor controller.
+- Jerison handles wiring and motor firmware; teammates handle mechanical design and perception.
+- H-bridge motor drive; exact module and motor/power ratings remain open.
+- Uno, Nano, or ESP32 controller under consideration; exact board remains open.
 
-## Planned pipeline
+## Proposed pipeline
 
 ```text
-Logitech RGB -> capture -> wildlife detector -------+
-                                                   +-> temporal checks -> warning UI
-Thermal     -> adapter -> thermal evidence ---------+
-                         calibration/association
+Logitech webcam ----+
+                    +-> laptop: detection -> position/range -> path relevance -> risk
+Thermal camera -----+                                                         |
+                                                                         USB serial
+                                                                              |
+                     4 DC motors <- H-bridge(s) <- controller state + watchdog
+                                                                              |
+                                                          status back to laptop
 ```
 
-Only the preview capture utility exists today. The rest of this diagram is a proposed architecture.
+Only the camera preview is implemented. The rest is a proposed design.
 
-Begin with RGB-only detection and a separate thermal preview. Select a model only after checking that its classes and training data cover the target animals. Do not map unknown animals into unrelated labels just to make the demonstration appear successful.
+## Perception boundary
 
-For thermal integration, first establish whether the device provides video, raw sensor values, or calibrated temperatures. A false-color stream is not automatically temperature data. Keep the thermal view separate until timestamps, fields of view, and calibration support association. A side-by-side view is not sensor fusion.
+The laptop determines object identity, position relative to the travel corridor, range, and uncertainty. It sends a risk mode, not raw pixel coordinates, to the controller.
 
-A roof mount can move and vibrate. Record camera intrinsics, relative pose, and a repeatable alignment check before associating observations. Do not assume a single flat-ground transform aligns animals at all distances.
+A bounding box does not automatically provide metric distance. For an initial constrained demo, investigate calibrated ground-plane geometry and validate against measured target locations. If those assumptions do not fit the setup, choose another ranging method before claiming distance.
 
-## Warning states to implement
+RGB plus thermal does not automatically make a depth camera. Stereo ranging requires known geometry and corresponding image points. Our design inference is that cross-spectrum matching requires its own validation. [OpenCV stereo-depth tutorial](https://docs.opencv.org/4.x/dd/d53/tutorial_py_depthmap.html).
 
-- **Starting / unavailable:** capture or model not ready.
-- **Monitoring:** frames are arriving; this does not mean the road is clear.
-- **Wildlife candidate:** detector evidence requires attention; display source and age.
-- **Sensor fault / stale data:** explicitly show missing or old frames; suppress stale detections.
+Determine whether thermal output is video, raw sensor values, or calibrated temperature. Do not assume an RGB model works on thermal frames. Define a conservative disagreement policy; a credible immediate obstacle must not be ignored solely because the second sensor disagrees.
 
-Use persistence and cooldown rules to limit flicker, then evaluate their latency cost. Begin with a visual indicator. Distance, collision probability, and time-to-collision must not appear as measured values without a validated estimator.
+## Controller states to implement
 
-## First demo
+| State | Motor intent | Exit |
+| --- | --- | --- |
+| DISARMED | No forward drive | Deliberate operator arm with healthy fresh input |
+| CRUISE | Tested forward setting | Far hazard, brake request, or fault |
+| SLOW | Reduced forward setting | Brake/fault, or stable clearance under hysteresis |
+| BRAKE_LATCHED | Driver-specific brake request | Operator re-arm after clearance |
+| FAULT_LATCHED | Driver-specific stop request | Fault resolved and operator re-arms |
 
-1. Start the preview with known inputs and verify both sources.
-2. Show a labeled wildlife recording with an RGB baseline.
-3. Compare the same evaluation scenarios with thermal evidence enabled.
-4. Show an empty scene and a sensor disconnection, not just successful detections.
-5. Present measured results and the itemized prototype cost.
+“Immediate braking” means prompt actuation, not instantaneous physical stopping. Choose thresholds using measured speed, perception/communication delay, braking distance, and range uncertainty. Unknown in-path obstacles must not be considered safe simply because they are not classified as deer.
 
-Controlled substitutes may test UI behavior, but a person, toy, or warm object does not validate wildlife detection.
+Equal motor PWM does not guarantee straight travel or a known speed. Verify drift in the intended lane. No steering or reverse operation is required.
+
+## Build sequence
+
+One motor on the bench -> four motors with wheels raised -> manual USB commands -> measured low-speed lane tests -> real perception integration.
+
+See [control interface](CONTROL_INTERFACE.md) and [evaluation](EVALUATION.md). Use staged targets for the RC demo and label proxy evidence honestly.

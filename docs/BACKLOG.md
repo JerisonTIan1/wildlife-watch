@@ -1,26 +1,30 @@
 # Team backlog
 
-Turn each task into an issue, select one owner, and link its PR. Choose owners as a team.
+## P0 - hardware and interfaces
 
-## P0 - unblock integration
+- [ ] Jerison: identify H-bridge, motor voltage/stall current, battery, and exact controller board.
+- [ ] Whole team: agree on CONTROL_INTERFACE.md, timeout, stop/re-arm behavior, and status fields.
+- [ ] Mechanical owner: confirm component dimensions, mounts, wiring access, and camera geometry.
+- [ ] Perception owner: confirm camera formats, simultaneous capture, and a testable distance method.
 
-- [ ] Inventory camera models, thermal interface, compute, currency, and $700 estimate contents. Done: hardware document contains verified entries.
-- [ ] Confirm repeatable RGB capture. Done: Logitech feed runs and failure behavior is recorded.
-- [ ] Implement thermal adapter if required. Done: real camera frames are available with documented format and timing.
-- [ ] Agree on event schema and module boundaries. Done: detector and UI can exchange a sample event without embedding model code in the UI.
+## P1 - work independently
 
-## P1 - working wildlife demonstration
+- [ ] Jerison: demonstrate one-motor forward/slow/brake behavior with wheels raised.
+- [ ] Jerison: expand to four motors and verify polarity, driver capacity, and physical power disconnect.
+- [ ] Jerison: implement bounded USB parser, state machine, acknowledgement, watchdog, and latched stops.
+- [ ] Mechanical owner: print/assemble chassis and measure alignment, drift, and mount stability.
+- [ ] Perception owner: implement detector and explicit unknown-obstacle handling.
+- [ ] Perception owner: validate position, distance/uncertainty, path relevance, and severity outputs.
+- [ ] Perception owner: implement USB sender that faults on stale perception.
 
-- [ ] Choose target species and assemble permissioned, labeled positive and negative recordings.
-- [ ] Implement RGB detector. Done: model/classes/license are documented and baseline results exist on held-out recordings.
-- [ ] Implement visual warning and fault states. Done: candidate, monitoring, stale, and disconnected states are demonstrated.
-- [ ] Integrate thermal evidence. Done: added benefit or lack of benefit is measured using the same evaluation split; calibration limitations are documented.
+## P2 - integrate and measure
 
-## P2 - credible presentation
+- [ ] Exchange manual USB commands before connecting the detector.
+- [ ] Measure speed, end-to-end latency, braking/coast distance, and lane drift.
+- [ ] Select slow/brake thresholds from measurements.
+- [ ] Demonstrate clear, far in-path, immediate in-path, and side-of-lane targets.
+- [ ] Demonstrate unplug, stale frames, bad input, reset, and deliberate re-arm.
+- [ ] Record a repeatable demo and label any proxy targets.
+- [ ] Itemize cost and state the limits of RC-scale results.
 
-- [ ] Complete reproducible bill of materials and distinguish borrowed hardware from cash spent.
-- [ ] Record a repeatable demo with successful and failed detections.
-- [ ] Report recall, false alerts, latency, FPS, and test conditions.
-- [ ] Agree on a license and whether to make the repository public.
-
-Defer autonomous control, braking, custom PCBs, mobile apps, cloud services, and unvalidated distance estimates until the core demo works.
+No steering, reverse travel, full-size-car integration, mobile app, or custom PCB is required.

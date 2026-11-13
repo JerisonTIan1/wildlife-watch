@@ -1,23 +1,22 @@
 # Working together
 
-Clone `https://github.com/JerisonTIan1/wildlife-watch.git` after accepting your collaborator invitation. Follow the README setup.
+Clone `https://github.com/JerisonTIan1/wildlife-watch.git` after accepting your invitation. Follow the README setup.
 
-1. Pick a task from `docs/BACKLOG.md` and agree on its owner in a GitHub issue.
-2. Pull the latest `main`, then create a branch such as `feat/rgb-detector`, `feat/thermal-capture`, or `feat/alert-ui`.
-3. Keep each pull request focused. Document how to run it and include real evidence of what works.
+1. Claim a task from `docs/BACKLOG.md` and agree on its owner.
+2. Pull the latest main and create a focused branch, such as `feat/motor-control`, `feat/chassis`, or `feat/risk-estimator`.
+3. Document how to run and verify each change, with measured evidence where relevant.
 4. Ask a teammate to review before merging. This is a team convention, not an enforced branch rule.
-5. Keep `main` runnable. Do not commit datasets, model weights, secrets, virtual environments, or generated video.
+5. Keep main runnable. Do not commit raw footage, model weights, secrets, virtual environments, or generated video.
 
-Suggested workstreams (assign together; these are not individual assignments):
+## Responsibilities
 
-| Workstream | Initial deliverable | Dependency |
-| --- | --- | --- |
-| Camera integration | Exact hardware inventory and repeatable capture | Physical cameras |
-| Detection and evaluation | RGB baseline and labeled evaluation clips | Target species and usable footage |
-| Interface and integration | Warning/fault UI consuming agreed detection events | Shared event fields below |
+- **JerisonTIan1:** wiring, power integration, H-bridge outputs, microcontroller state machine, USB receiver, command watchdog, motor tests.
+- **Mechanical teammate (to be agreed):** chassis CAD/prints, mounts, assembly, alignment, and measured dimensions.
+- **Perception teammate(s) (to be agreed):** camera capture, detection, position/range, uncertainty, path relevance, risk classification, USB sender.
+- **Whole team:** shared interface, stop/re-arm behavior, integration and demo evidence.
 
-Proposed detection event fields: `source_id`, `frame_id`, `capture_time_ns`, `class_name`, `confidence`, `bbox_xyxy`, `model_id`. Coordinates are pixels in the original frame and confidence is a score, not a calibrated probability. Record timestamp origin and image dimensions. Finalize the contract in an issue before parallel implementation.
+Agree on [CONTROL_INTERFACE.md](docs/CONTROL_INTERFACE.md) before coding both endpoints. The laptop owns perception and risk; the controller owns motor outputs and local fault handling. Keep board/driver pin mapping separate from control logic.
 
-Run `python -m compileall -q wildlife_watch` and `python -m wildlife_watch.preview --help` before a PR. For capture changes, test a known video and the affected physical camera where available. Clearly distinguish synthetic, recorded, and live evidence.
+For Python changes, run `python -m compileall -q wildlife_watch` and `python -m wildlife_watch.preview --help`. For firmware, record the exact board target, toolchain, compile result, and physical checks. A compile is not a motor test.
 
-Do not silently download weights at import time. Document model classes, licenses, runtime dependencies, and limitations. Obtain team agreement on a project license before a public release.
+Clearly distinguish synthetic, recorded, proxy-target, and physical-hardware evidence. Keep model licenses and camera/driver documentation linked near the implementation.
