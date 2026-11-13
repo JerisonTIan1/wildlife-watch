@@ -68,11 +68,18 @@ A future laptop sender should send new sequence numbers every 100 ms only while 
 | ARM | Only valid from DISARMED; enters ARMED without drive |
 | CRUISE | Requests forward cruise duty if armed |
 | SLOW | Requests reduced forward duty if armed |
+| SPEED,percent | Integer 1..100 forward duty if armed; 0 latches a brake request |
 | BRAKE | Requests braking and latches the stop |
 | FAULT | Requests a fault stop and latches it |
 | DISARM | Disables drive and permits a later explicit ARM |
 
 BRAKE/FAULT cannot be released by CRUISE or SLOW. Recovery requires DISARM, ARM, then a fresh drive command. DISARM requests disabled outputs; on actual hardware this may coast. Do not disarm a moving vehicle as a substitute for a validated brake action.
+
+SPEED uses the same latch and watchdog rules, reporting state DRIVE. Requested
+duty is `(percent * 255 + 50) / 100` using integer division; this is not measured
+speed. See [Python mock and encoder](../wildlife_watch/hardware/README.md).
+The board compilation figures above/below describe the original scaffold,
+not verification of this percentage-command extension on the eventual board.
 
 Malformed input, old/duplicate sequence numbers, and timeout fault the controller. Partial frames and blank lines do not keep it alive. The sketch avoids blocking reads, delays, and dynamic String allocation.
 
