@@ -1,5 +1,9 @@
 # Calibrated marker distance and relative closing speed
 
+For a marker mounted above the reindeer, use the optional
+[measured deer localization](DEER_LOCALIZATION.md) to transform marker pose into
+body-center observations and projected target bounds.
+
 For the optional live prediction and mock-braking integration, see
 [collision demo](COLLISION_DEMO.md). The pose API remains unchanged.
 

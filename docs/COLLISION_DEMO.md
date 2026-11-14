@@ -1,5 +1,9 @@
 # Live camera to prediction to mock braking
 
+Optional [marker-assisted deer localization](DEER_LOCALIZATION.md) uses measured
+mount offsets and body/trolley dimensions. Append `--target-geometry` to use body
+center and rotated extents instead of treating the marker as the target center.
+
 Optional [USB serial bench/integration](USB_SERIAL.md) is now available behind
 explicit operator flags. Mock remains default. Serial mode rejects synthetic
 configurations, disables tracking-loss grace, and accepts only the documented

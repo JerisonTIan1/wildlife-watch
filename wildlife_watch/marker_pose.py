@@ -55,6 +55,11 @@ class Observation:
     closing_speed_cm_s: float | None = None
     reprojection_error_px: float | None = None
     marker_id: int = 0
+    marker_rvec: tuple[float, float, float] | None = None
+    marker_tvec_cm: tuple[float, float, float] | None = None
+    target_half_width_cm: float | None = None
+    target_half_depth_cm: float | None = None
+    position_reference: str = "marker"
 
     def to_dict(self):
         return asdict(self)
@@ -134,4 +139,6 @@ class PoseEstimator:
             return invalid("PNP_FAILED")
         x, _, z = tvec.reshape(3)
         speed = self.speed.update(timestamp, float(z))
-        return Observation(timestamp, True, True, "OK", float(z), float(x), speed, error)
+        return Observation(timestamp, True, True, "OK", float(z), float(x), speed, error,
+                           marker_rvec=tuple(float(v) for v in rvec.reshape(3)),
+                           marker_tvec_cm=tuple(float(v) for v in tvec.reshape(3)))

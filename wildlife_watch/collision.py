@@ -80,9 +80,17 @@ class CollisionPredictor:
             return unknown("MISSING_POSE_QUALITY")
         if o.distance_cm <= 0 or not 0 <= o.reprojection_error_px <= c.max_reprojection_px:
             return unknown("UNRELIABLE_POSE")
-        half_width = c.vehicle_width_cm / 2 + c.target_half_width_cm + c.margin_cm
-        front = c.camera_to_front_cm + c.target_half_depth_cm + c.margin_cm
-        rear = -c.camera_to_rear_cm - c.target_half_depth_cm - c.margin_cm
+        if o.position_reference == "deer_body":
+            width, depth = o.target_half_width_cm, o.target_half_depth_cm
+            if any(v is None or not math.isfinite(v) or v <= 0 for v in (width, depth)):
+                return unknown("TARGET_EXTENTS_UNAVAILABLE")
+        elif o.position_reference == "marker":
+            width, depth = c.target_half_width_cm, c.target_half_depth_cm
+        else:
+            return unknown("UNKNOWN_POSITION_REFERENCE")
+        half_width = c.vehicle_width_cm / 2 + width + c.margin_cm
+        front = c.camera_to_front_cm + depth + c.margin_cm
+        rear = -c.camera_to_rear_cm - depth - c.margin_cm
         # Current geometric overlap is urgent even before velocity warms up.
         if abs(o.lateral_cm) <= half_width and rear <= o.distance_cm <= front:
             return RiskDecision("HIGH", "CURRENT_OVERLAP", now, True, 0.,

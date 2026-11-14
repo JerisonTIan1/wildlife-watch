@@ -204,6 +204,8 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
     parser.add_argument("--preprocess", choices=("none", "clahe"), default="none")
     parser.add_argument("--calibration", help="Measured calibration JSON; omit for pixel-only mode")
     parser.add_argument("--marker-side-cm", type=finite_number, help="Measured OUTER black-square side in cm")
+    parser.add_argument("--target-geometry", help="Measured marker-to-deer geometry JSON")
+    parser.add_argument("--hide-marker-outline", action="store_true", help="Hide raw corner graphics only; detection continues")
     args = parser.parse_args(argv)
     if args.camera < 0:
         parser.error("--camera must be nonnegative")
@@ -211,6 +213,8 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
         parser.error("Pose requires both --calibration and --marker-side-cm")
     if args.marker_side_cm is not None and args.marker_side_cm <= 0:
         parser.error("--marker-side-cm must be positive")
+    if args.target_geometry and not args.calibration:
+        parser.error("--target-geometry requires calibrated pose")
     for name in ("width", "height", "fps"):
         if getattr(args, name) is not None and getattr(args, name) <= 0:
             parser.error(f"--{name} must be positive")
@@ -224,9 +228,13 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
     stats = DetectionStats()
     try:
         estimator = None
+        localizer = None
         if args.calibration:
             from .marker_pose import Calibration, PoseEstimator
             estimator = PoseEstimator(Calibration.load(args.calibration), args.marker_side_cm)
+            if args.target_geometry:
+                from .deer_localization import DeerLocalizer, TargetGeometry
+                localizer = DeerLocalizer(estimator.calibration, TargetGeometry.load(args.target_geometry))
         detector = make_detector(args.profile)
         preprocess = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) if args.preprocess == "clahe" else None
         backend = {"auto": cv2.CAP_ANY, "dshow": cv2.CAP_DSHOW, "msmf": cv2.CAP_MSMF}[args.backend]
@@ -288,6 +296,11 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
             if estimator is not None:
                 observation = estimator.observe(targets[0] if center is not None else None,
                                                 (shape[1], shape[0]), now, status)
+                if localizer is not None:
+                    from .deer_localization import draw_deer
+                    observation, deer_box = localizer.locate(observation, (shape[1], shape[0]))
+                    draw_deer(frame, deer_box)
+                    diagnostics.append("Target: DEER BODY (marker-assisted)")
                 if observation.pose_valid:
                     speed_text = "-- warming up" if observation.closing_speed_cm_s is None else f"{observation.closing_speed_cm_s:.1f} cm/s"
                     diagnostics.extend([f"Forward Z: {observation.distance_cm:.1f} cm | Right X: {observation.lateral_cm:.1f} cm",
@@ -301,7 +314,7 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
             if observed_at - last_report >= 1:
                 print(f"Observed FPS {fps:.1f} | " + " | ".join(diagnostics))
                 last_report = observed_at
-            cv2.imshow(WINDOW, annotate(frame, targets, center, status, fps, diagnostics))
+            cv2.imshow(WINDOW, annotate(frame, [] if args.hide_marker_outline else targets, center, status, fps, diagnostics))
             key = cv2.waitKey(30 if failed_since is not None else 1) & 0xFF
             if on_key is not None:
                 on_key(key)
