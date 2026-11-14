@@ -13,10 +13,11 @@ def snapshot(demo, label):
         pose = demo.tracking.last_pose
         return dict(risk=demo.risk.risk, conflict=demo.risk.conflict_in_s,
                     policy=demo.brake.level, policy_duty=demo.brake.duty_percent,
-                    controller=demo.car.state, duty=demo.car.speed_percent,
+                    controller=getattr(demo.car, "display_status", demo.car.state), duty=demo.car.speed_percent,
                     hardware=demo.backend_label, tracking=demo.tracking.state,
                     age=None if pose is None else demo.clock()-pose.timestamp_s,
-                    label=label, message=demo.message,
+                    label=label, message=(f"Request {demo.car.requested_action} PWM {demo.car.requested_pwm}/255 | ACK {demo.car.acknowledged_status}"
+                                          if hasattr(demo.car, "acknowledged_status") else demo.message),
                     freshness_s=demo.tracking.config.capture_timeout_s)
 
 
@@ -71,7 +72,8 @@ def render(frame, observation, state, fps, now):
     text(f"{state.get('policy', '--')} / {state.get('policy_duty', '--')}% requested", 952, 535, .55, white, 290)
     text("ACTUAL CONTROLLER STATE", 952, 571, .43, muted)
     text(state.get("controller", "UNAVAILABLE"), 952, 597, .55, white, 290)
-    text(f"Controller duty: {state.get('duty', '--')}%", 952, 624, .52, muted, 290)
+    duty = state.get('duty')
+    text("Controller duty: " + ("--" if duty is None else f"{duty:.1f}%"), 952, 624, .52, muted, 290)
     text("Duty is a request, not measured speed", 952, 646, .36, muted, 290)
     text(state.get("tracking", "TRACKED" if observation and observation.pose_valid else "LOST"), 952, 685, .55, white, 290)
     age = state.get("age")

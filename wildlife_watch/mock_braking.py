@@ -4,7 +4,8 @@ from time import perf_counter
 from threading import Event, RLock, Thread
 from functools import wraps
 
-from .collision import CollisionPredictor, braking_policy
+from .collision import CollisionPredictor, braking_policy, BrakeDecision
+import math
 from .hardware import MockCarController
 from .tracking_loss import LossConfig, TrackingLoss
 
@@ -31,26 +32,60 @@ class MockBrakingDemo:
         self.car = serial_controller if self.serial_mode else MockCarController(clock=clock)
         self.backend_label = self.car.backend_label if self.serial_mode else "MOCK ONLY"
         self.risk = self.predictor.update(None, clock())
-        self.brake = braking_policy(self.risk, self.config)
+        self.brake = self.decide_brake()
         self.message = "Press A to explicitly arm on fresh LOW risk"
+        if hasattr(self.car, "diagnostic_context"):
+            self.car.diagnostic_context = self.diagnostic_context
+
+    def diagnostic_context(self):
+        now = self.clock()
+        pose = self.tracking.last_pose
+        return dict(risk=self.risk.risk, risk_reason=self.risk.reason,
+                    tracking=self.tracking.state,
+                    observation_age_s=None if pose is None else now-pose.timestamp_s,
+                    callback_age_s=None if self.last_callback is None else now-self.last_callback,
+                    policy_reason=self.brake.reason)
+
+    def stop(self, reason):
+        if hasattr(self.car, "diagnostic_context"):
+            self.car.stop(reason=reason)
+        else:
+            self.car.stop()
 
     @synchronized
     def observe(self, observation):
         self.last_callback = self.clock()
         self._process(observation)
 
-    def _process(self, observation):
+    def decide_brake(self):
+        return braking_policy(self.risk, self.config)
+
+    def _process(self, observation, stop_trigger=None):
         now = self.clock()
         if observation is not None and now - observation.timestamp_s > self.tracking.config.capture_timeout_s:
+            stop_trigger = "STALE_OBSERVATION"
             observation = None
         self.risk = self.predictor.update(observation, now)
         self.tracking.update(observation, self.risk, now)
-        self.brake = braking_policy(self.risk, self.config)
+        self.brake = self.decide_brake()
+        speed_bound = getattr(self.car, "max_relative_speed_cm_s", None)
+        if speed_bound is not None and self.risk.closing_speed_cm_s is not None:
+            if math.hypot(self.risk.closing_speed_cm_s, self.risk.lateral_speed_cm_s or 0) > speed_bound:
+                self.brake = BrakeDecision("STOP", 0, "MEASURED_SPEED_BOUND_EXCEEDED")
         if self.risk.risk == "UNKNOWN" and not self.serial_mode:
             self.brake = self.tracking.provisional(now, self.config.slow_duty)
         if self.brake.level == "STOP":
-            self.car.stop()
+            trigger = stop_trigger or (
+                "HIGH_RISK" if self.risk.risk == "HIGH" else
+                "MARKER_LOSS" if observation is not None and not observation.detection_valid else
+                "MISSING_OBSERVATION" if observation is None else
+                "UNKNOWN_RISK" if self.risk.risk == "UNKNOWN" else self.brake.reason)
+            self.stop(trigger)
         elif self.car.state in ("ARMED", "DRIVE"):
+            if hasattr(self.car, "set_action"):
+                self.car.set_action(self.brake.level,
+                                    expires_at=observation.timestamp_s + self.tracking.config.capture_timeout_s)
+                return
             # No automatic increase after slowing; deliberate re-arm grants it.
             duty = min(self.brake.duty_percent, self.car.speed_percent or self.brake.duty_percent)
             if self.serial_mode:
@@ -62,7 +97,7 @@ class MockBrakingDemo:
     def tick(self):
         now = self.clock()
         if self.last_callback is None or now - self.last_callback >= self.tracking.config.capture_timeout_s:
-            self._process(None)
+            self._process(None, "NO_CAMERA_CALLBACK" if self.last_callback is None else "STALE_CAMERA_CALLBACK")
         self.car.tick()
 
     def start(self):
@@ -74,7 +109,7 @@ class MockBrakingDemo:
                     self.tick()
                 except Exception:
                     with self.lock:
-                        self.car.stop()
+                        self.stop("FRESHNESS_WORKER_ERROR")
                         self.message = "Freshness worker failed: STOP latched"
                     return
         self.worker = Thread(target=run, daemon=True, name="mock-freshness")
@@ -94,7 +129,7 @@ class MockBrakingDemo:
     def key(self, key):
         self.tick()
         if key in (ord("s"), ord("S")):
-            self.car.stop()
+            self.stop("MANUAL_STOP")
             self.message = "Operator STOP latched"
         elif key in (ord("a"), ord("A")):
             fresh = 0 <= self.clock() - self.risk.timestamp_s <= self.predictor.config.stale_s

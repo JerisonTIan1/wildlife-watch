@@ -1,75 +1,112 @@
-# Wildlife Watch
+﻿# Oh Deer!
 
-**A low-cost wildlife-aware RC car that slows down or brakes when an animal crosses its path.**
+**Predicting wildlife collisions before they happen.**
 
-We are building a 3D-printed RC car with four DC motors, a top-mounted Logitech webcam, and a thermal camera. It travels forward along a straight test lane. A laptop processes the camera feeds, estimates position, distance, and severity, and sends commands over USB to a microcontroller controlling the motors through H-bridge drivers.
+Wildlife can enter a vehicle's path with little warning. Oh Deer! explores how camera-based relative motion estimates can identify a potential collision and request reduced motor output on a miniature vehicle before contact.
 
-This is an RC-scale demonstration of a collision-mitigation concept. It is not validated for a full-size car. There is no drone or steering in this MVP.
+This hackathon prototype uses a **marker-equipped simulated reindeer**, not a trained wildlife classifier. The repository retains its original name, `wildlife-watch`, and its Python package remains `wildlife_watch`.
 
-## Intended behavior
+## What we built
 
-| Situation | Requested response |
-| --- | --- |
-| Operator has armed the car; perception and communication are healthy; no relevant hazard | Forward at a tested cruise setting |
-| Farther wildlife within the travel corridor | Reduce drive to a tested slow setting |
-| Immediate hazard within the measured stopping threshold | Request braking immediately; latch the stop |
-| Stale perception, lost USB commands, or a fault | Stop request; never retain the last forward command indefinitely |
-| Hazard stop or fault has occurred | Explicit operator re-arm before moving again |
+- Live Logitech webcam detection of ArUco `DICT_4X4_50`, ID `0`.
+- Camera calibration and calibrated PnP pose estimation: forward distance, lateral offset and timestamp-based relative closing speed.
+- Marker-assisted deer localization: full marker rotation and translation project a configured 3D body box onto the image.
+- A straight-driving, constant-relative-velocity collision predictor reporting LOW, MEDIUM, HIGH or UNKNOWN risk and predicted time to conflict.
+- An OpenCV dashboard, mock controller, explicit arming, latched stops and independent host freshness monitoring.
+- A dedicated USB ASCII transport for the STM32 NUCLEO-G431KB motor controller.
 
-These are planned rules, not working firmware. “Immediately” means requesting braking without an intentional delay, not zero stopping time. The motor driver's physical brake behavior and the thresholds must be measured.
+**What has actually worked:** physical Python-to-STM32 motor commands, and an integrated live webcam-to-motor demonstration with the driven wheels raised. The integrated demonstration actuated the motors, then latched STOP when marker detection was lost. Reacquisition does not automatically restart the motors. **Autonomous ground-driving collision avoidance has not been validated.**
 
-## Who builds what
+## How it works
 
-| Owner | Responsibility | Location |
-| --- | --- | --- |
-| JerisonTIan1 | Wiring, power, motor drivers, and microcontroller firmware | `firmware/`, `docs/HARDWARE.md` |
-| Teammate, to be agreed | CAD, 3D printing, chassis assembly, and mounts | `mechanical/` |
-| Teammate(s), to be agreed | Camera input, wildlife detection, position/distance, severity, and USB sender | `wildlife_watch/` |
-| Whole team | Interface agreement and physical integration tests | `docs/` |
-
-Teammates: [marvinuofa](https://github.com/marvinuofa) and [VyomMaheshwari1](https://github.com/VyomMaheshwari1). Their individual workstream split is not assigned here.
-
-## Current status
-
-The repository contains a camera/video preview utility and a **dry-run motor-controller sketch**, with USB command parsing, four-motor output intent, arming, latched stop states, and a command watchdog. The sketch compiles for Uno and classic Nano; its control logic has host tests. **It drives no motor pins.**
-
-The chassis, live H-bridge backend, laptop command sender, detector, range estimator, and physical automatic braking remain to be built. Start your Arduino work with [firmware/README.md](firmware/README.md).
-
-The preview passed synthetic-video checks. Physical-camera compatibility and physical vehicle behavior have not been verified. Two preview feeds are displayed side by side; they are not synchronized or fused.
-
-## Run the preview
-
-Use Python 3.11 or newer:
-
-```sh
-python -m venv .venv
+```text
+Webcam -> OpenCV/ArUco -> Pose Estimation -> Collision Predictor
+       -> PWM Decision -> USB Serial -> STM32 NUCLEO-G431KB
+       -> TB6612FNG -> DC Motors
 ```
 
-Activate on Windows PowerShell with `.venv\Scripts\Activate.ps1`, or macOS/Linux with `source .venv/bin/activate`.
+PnP uses measured camera intrinsics, distortion and marker side length. Marker-to-body offsets locate the configured deer body relative to the camera. Successive valid observations estimate relative motion; the predictor checks whether the target will overlap a configured vehicle corridor within a short horizon. Missing observations remain UNKNOWN, never fabricated current positions.
 
-```sh
-python -m pip install -r requirements.txt
-python -m wildlife_watch.preview --rgb 0
-python -m wildlife_watch.preview --rgb 0 --thermal 1
-python -m wildlife_watch.preview --rgb data/rgb.mp4 --thermal data/thermal.mp4
+The mock demo applies the existing braking policy. The separate wheels-raised output demonstration maps LOW to PWM 255, MEDIUM to 200, and HIGH/UNKNOWN/loss/stale input to latched STOP. These duties are **not measured vehicle speeds**. Normal physical-backend operation remains gated on measured geometry and stopping bounds.
+
+## Technologies and hardware
+
+Python, OpenCV (`cv2.aruco`, calibration, `solvePnP`, projection), NumPy, pyserial, Windows DirectShow, a Logitech USB webcam, printed ArUco marker, 3D-printed reindeer/vehicle components, STM32 NUCLEO-G431KB, TB6612FNG and DC motors.
+
+The tested serial connection is ST-LINK virtual COM at **115200 baud**, currently COM8 on the demo laptop. Firmware accepts newline-delimited PWM integers or `STOP`, with `PWM = n` / `STOPPED` acknowledgments. STOP disables outputs and **coasts**, rather than guaranteeing active braking. Firmware timeout is **2000 ms**.
+
+The Arduino V1/SIM code in [firmware](firmware/README.md) is an earlier, separate dry-run implementation. It is incompatible with the working STM32 ASCII protocol; do not use its V1 transport for this demo. ToF integration is future work, not part of the demonstrated prediction pipeline.
+
+The working STM32 firmware was developed separately; this checkout contains its Python transport, not a reproducible STM32 firmware build. The physical demo requires the board already running the confirmed ASCII-command firmware.
+
+## Windows setup
+
+Use Python 3.11 or newer. From the repository root in PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r wildlife_watch/hardware/requirements-serial.txt
 ```
 
-Use `--thermal 1` only if the thermal camera exposes an OpenCV-compatible video device. Proprietary/radiometric cameras may need a manufacturer SDK adapter. Camera indices depend on the machine.
+No virtual-environment activation is required. OpenCV supplies the NumPy dependency; the serial requirements file supplies pyserial. No model downloads or training are needed.
 
-Press Q or Escape to close. Video files run as fast as decoding permits; playback is not time-aligned. The first ended/failed source stops the preview with a message. Live camera read failure returns a nonzero exit code. This utility neither records footage nor commands motors.
+For calibrated live demos, first follow [camera calibration](docs/MARKER_POSE.md) and [marker-to-deer geometry](docs/DEER_LOCALIZATION.md). The commands below use the existing demo laptop's `runs/logitech-calibration.json` and `runs/deer-geometry.json`. **These local files are intentionally not committed. A fresh clone must create its own calibration and measured target geometry before running these commands.** Do not substitute invented intrinsics or example dimensions. Camera index `1` and marker side `7.00` cm must match your actual setup. Calibration must match the 640 x 480 capture mode and camera optics.
 
-## Build order
+## Live camera with mock motors
 
-1. Identify the H-bridge, motor ratings, battery, and controller board; agree on the USB contract.
-2. Test one motor, then all four, using manual commands with wheels raised.
-3. Demonstrate link-loss stopping and measure low-speed braking distance.
-4. Validate laptop detection, distance, and path relevance.
-5. Integrate cruise, slow, brake, and fault cases in a bounded test lane.
+This command uses the real webcam and pose pipeline, with no physical motor connection:
 
-Start with [architecture](docs/ARCHITECTURE.md), [control interface](docs/CONTROL_INTERFACE.md), [firmware](firmware/README.md), [mechanical design](mechanical/README.md), [hardware/cost](docs/HARDWARE.md), [evaluation](docs/EVALUATION.md), and [backlog](docs/BACKLOG.md).
+```powershell
+.\.venv\Scripts\python.exe -m wildlife_watch.collision_demo --hardware-backend mock --config docs/collision_demo.synthetic.json --allow-synthetic-config --calibration runs/logitech-calibration.json --marker-side-cm 7.00 --target-geometry runs/deer-geometry.json --camera 1 --backend dshow --width 640 --height 480 --fps 30 --fourcc MJPG
+```
 
-## Working together
+The collision geometry and stopping assumptions in this demonstration config are **synthetic**, visibly labeled on screen. A visually aligned deer box does not establish measured vehicle geometry or stopping performance.
 
-Use small branches and pull requests; see [CONTRIBUTING.md](CONTRIBUTING.md). Keep raw recordings, model weights, credentials, and generated media out of Git. Record model/dataset permissions. No open-source license has been selected yet.
+## Separate STM32 wheels-raised demonstration
 
-Use “low-cost” as the headline; the preliminary cost estimate and missing bill-of-materials details live in the hardware document. A staged model-animal or warm-proxy demonstration tests parts of the pipeline, not real deer recognition or full-size collision prevention.
+**Real motors can turn.** Secure the vehicle with all driven wheels raised, keep hands/cables clear and the motor-power disconnect reachable. Close other COM8 applications. This explicit opt-in is for an output demonstration, not ground driving:
+
+```powershell
+.\.venv\Scripts\python.exe -m wildlife_watch.stm32_bench_demo --confirm-wheels-raised-and-disconnect-ready --port COM8 --config docs/collision_demo.synthetic.json --allow-synthetic-config --calibration runs/logitech-calibration.json --marker-side-cm 7.00 --target-geometry runs/deer-geometry.json --camera 1 --backend dshow --width 640 --height 480 --fps 30 --fourcc MJPG
+```
+
+- Startup is stopped and disarmed. Focus the OpenCV window; press **A** only after stable TRACKED + LOW risk. A fresh observation is required before PWM is sent.
+- **S** latches STOP. **Q/Esc** exits and requests STOP. Disconnect motor power immediately if the application or USB becomes unresponsive.
+- Even one missed marker frame latches STOP. Fresh LOW tracking plus another deliberate **A** is required to restart. Do not hold A to defeat the latch.
+- PWM 200 may stall the motors. Neither PWM mapping is a calibrated speed.
+- Append `--diagnostics` for ARM, command, ACK and exact STOP-trigger logs.
+
+See [wheels-raised instructions](docs/STM32_WHEELS_RAISED_DEMO.md) and [measured physical-backend requirements](docs/STM32_BENCH.md). The separate demonstration ignores example stopping parameters and computes no stopping margin; it does not weaken the normal physical backend's measurement gates.
+
+## Automated verification
+
+From the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s wildlife_watch -t . -p "test_*.py" -v
+```
+
+Tests use synthetic images/observations and fake serial: pose/projection, relative motion, collision cases, tracking loss, latches, serial ACKs/faults and diagnostic events. They do not connect COM8, actuate motors or validate physical braking. Earlier Arduino C++ logic tests are documented in [firmware/README.md](firmware/README.md).
+
+## Current limitations
+
+- Marker-assisted localization is not recognition of unmarked wildlife.
+- Motion blur, occlusion and marker orientation can interrupt detection. Recorded physical-demo stops were triggered by marker loss; the stop latch behaved as designed.
+- Demo collision geometry/stopping assumptions are synthetic. Calibration and target measurements are setup-specific; visual alignment alone proves no accuracy.
+- Camera rotation, buffering and derivative-filter lag affect relative motion. Constant-velocity, straight-driving prediction is an approximation.
+- STOP coasts. Stopping distance, response bounds and autonomous ground-driving collision avoidance have not been validated. The firmware's 2-second watchdog is not evidence of timely collision prevention.
+- The dashboard shows requested/acknowledged duty, not measured wheel speed.
+- Historical design documents retain the WildCross/Wildlife Watch names and earlier plans; this README describes the current hackathon demonstration.
+
+## Future improvements
+
+Measure vehicle/target geometry, coast stopping distance and end-to-end latency; improve camera mounting, lighting and exposure reliability; integrate independent ToF measurements; then validate controlled low-speed tests with appropriate physical interlocks. Unmarked wildlife recognition is a later research step.
+
+## Repository guide
+
+- [Vision and pose](docs/MARKER_POSE.md), [ArUco diagnostics](docs/ARUCO_WEBCAM.md)
+- [Deer localization](docs/DEER_LOCALIZATION.md), [collision demo](docs/COLLISION_DEMO.md)
+- [STM32 demo](docs/STM32_WHEELS_RAISED_DEMO.md), [STM32 integration](docs/STM32_BENCH.md)
+- [Mechanical work](mechanical/README.md), [contributing](CONTRIBUTING.md)
+
+No open-source license has been selected yet.

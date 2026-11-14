@@ -24,3 +24,13 @@ build/
 *.elf
 *.hex
 *.exe
+*.log
+*.tmp
+*.bak
+.coverage
+htmlcov/
+test-results/
+private/
+secrets/
+*.pem
+*.key
