@@ -1,5 +1,26 @@
 # Live camera to prediction to mock braking
 
+## Judge-facing display
+
+Presentation is now the default. Append `--display-mode presentation` explicitly
+if desired; use `--display-mode debug` to restore the detailed diagnostic header.
+Both modes use the same perception, prediction, controls and safety behavior.
+Existing `--geometry-debug` and `--hide-marker-outline` options still work.
+
+The presentation canvas is 1280x800: the full camera image is letterboxed into a
+900x675 area without cropping or changing aspect ratio. A dark sidebar shows
+current distance, closing speed, lateral offset, predicted conflict time, risk,
+policy request, separate controller state/duty, tracking state and observation age.
+Invalid or stale current observations clear numeric measurements to `--`; speed
+warmup also remains `--`. No confidence score is generated. LOW is green, MEDIUM
+amber, HIGH red, UNKNOWN gray. Hardware mode and synthetic-configuration labels
+remain prominent; SERIAL with SIM firmware is explicitly labeled as such and
+must not be presented as live motor actuation. A/S/Q controls stay visible.
+
+The renderer adds no I/O or background work. A local 100-frame synthetic render
+check measured ~4.2 ms median / 4.8 ms p95 (rendering only, not camera/inference).
+That is not a guarantee of physical 30 FPS; observe the existing FPS display.
+
 Optional [marker-assisted deer localization](DEER_LOCALIZATION.md) uses measured
 mount offsets and body/trolley dimensions. Append `--target-geometry` to use body
 center and rotated extents instead of treating the marker as the target center.

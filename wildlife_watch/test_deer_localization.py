@@ -5,7 +5,7 @@ import unittest
 import cv2
 import numpy as np
 
-from .marker_pose import Calibration, Observation
+from .marker_pose import Calibration, Observation, PoseEstimator
 from .deer_localization import TargetGeometry, DeerLocalizer
 from .collision import CollisionConfig, CollisionPredictor
 
@@ -75,6 +75,39 @@ class DeerTests(unittest.TestCase):
         _, far = self.localizer.locate(self.marker(.1, z=200), (640, 480))
         self.assertGreater(near[1]-240, far[1]-240)
         self.assertGreater(near[2]-near[0], far[2]-far[0])
+
+    def test_detected_upright_marker_above_body_regression(self):
+        from .aruco_webcam import make_detector, detect_target
+        dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        printed = cv2.aruco.generateImageMarker(dictionary, 0, 100)
+        geometry = TargetGeometry((0., -16., -5.), (16., 20., 10.))
+        for upside_down in (False, True):
+            frame = np.full((480, 640, 3), 255, np.uint8)
+            pixels = np.rot90(printed, 2).copy() if upside_down else printed
+            frame[190:290, 270:370] = cv2.cvtColor(pixels, cv2.COLOR_GRAY2BGR)
+            targets, center, _ = detect_target(frame, make_detector())
+            marker = PoseEstimator(self.calibration, 7.).observe(targets[0], (640, 480), 0.)
+            self.assertTrue(marker.pose_valid)
+            rotation, _ = cv2.Rodrigues(np.asarray(marker.marker_rvec))
+            body_center = rotation @ np.asarray(geometry.center_marker_cm) + marker.marker_tvec_cm
+            vertices = geometry.corners() @ rotation.T + marker.marker_tvec_cm
+            self.assertAlmostEqual(vertices[:, 0].max()-vertices[:, 0].min(), 16., places=3)
+            self.assertAlmostEqual(vertices[:, 1].max()-vertices[:, 1].min(), 20., places=3)
+            self.assertAlmostEqual(vertices[:, 2].max()-vertices[:, 2].min(), 10., places=3)
+            body, box = DeerLocalizer(self.calibration, geometry).locate(marker, (640, 480))
+            self.assertIsNotNone(box)
+            if upside_down:
+                # Same ID detected, but canonical +Y now points down: repro of symptom.
+                self.assertLess(body_center[1], marker.marker_tvec_cm[1])
+                self.assertLess(box[3], center[1])
+                # For this confirmed 180-degree mounting, physical below is +Y.
+                corrected = TargetGeometry((0., 16., -5.), geometry.size_marker_cm)
+                _, corrected_box = DeerLocalizer(self.calibration, corrected).locate(marker, (640, 480))
+                self.assertGreater(corrected_box[1], center[1])
+            else:
+                self.assertGreater(body_center[1], marker.marker_tvec_cm[1])
+                self.assertGreater(box[1], center[1])
+            self.assertAlmostEqual(body.distance_cm, body_center[2])
 
 
 if __name__ == "__main__":

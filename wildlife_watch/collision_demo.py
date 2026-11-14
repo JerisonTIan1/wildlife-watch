@@ -48,9 +48,11 @@ def main(argv=None):
     print(demo.backend_label + ": " + label)
     try:
         demo.start()
+        from .dashboard import snapshot
         return aruco_webcam.main(
             ["--calibration", args.calibration, "--marker-side-cm", str(args.marker_side_cm), *camera_args],
-            on_observation=demo.observe, extra_lines=lambda: [label, *demo.lines()], on_key=demo.key)
+            on_observation=demo.observe, extra_lines=lambda: [label, *demo.lines()], on_key=demo.key,
+            dashboard_state=lambda: snapshot(demo, label))
     finally:
         demo.close()
 

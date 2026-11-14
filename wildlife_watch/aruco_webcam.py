@@ -185,7 +185,7 @@ def annotate(frame, targets, center, status, fps, diagnostics=()):
     return output
 
 
-def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
+def main(argv=None, on_observation=None, extra_lines=None, on_key=None, dashboard_state=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", type=int, default=0, help="Camera index, e.g. 0 or 1")
     parser.add_argument("--backend", choices=("auto", "dshow", "msmf"), default="auto",
@@ -206,6 +206,8 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
     parser.add_argument("--marker-side-cm", type=finite_number, help="Measured OUTER black-square side in cm")
     parser.add_argument("--target-geometry", help="Measured marker-to-deer geometry JSON")
     parser.add_argument("--hide-marker-outline", action="store_true", help="Hide raw corner graphics only; detection continues")
+    parser.add_argument("--geometry-debug", action="store_true", help="Show canonical marker axes and configured body-center direction")
+    parser.add_argument("--display-mode", choices=("presentation", "debug"), default="presentation")
     args = parser.parse_args(argv)
     if args.camera < 0:
         parser.error("--camera must be nonnegative")
@@ -235,6 +237,9 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
             if args.target_geometry:
                 from .deer_localization import DeerLocalizer, TargetGeometry
                 localizer = DeerLocalizer(estimator.calibration, TargetGeometry.load(args.target_geometry))
+                print("Configured target center (marker cm):", localizer.geometry.center_marker_cm)
+                print("Configured target full dimensions (cm):", localizer.geometry.size_marker_cm,
+                      "- physical measurement provenance is not verified by this file")
         detector = make_detector(args.profile)
         preprocess = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) if args.preprocess == "clahe" else None
         backend = {"auto": cv2.CAP_ANY, "dshow": cv2.CAP_DSHOW, "msmf": cv2.CAP_MSMF}[args.backend]
@@ -264,6 +269,7 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
         last_report = float("-inf")
         last_camera_report = float("-inf")
         while True:
+            observation = None
             ok, frame = capture.read()
             now = perf_counter()
             if not ok or frame is None or frame.size == 0:
@@ -298,6 +304,9 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
                                                 (shape[1], shape[0]), now, status)
                 if localizer is not None:
                     from .deer_localization import draw_deer
+                    if args.geometry_debug:
+                        from .deer_localization import draw_geometry_debug
+                        draw_geometry_debug(frame, observation, estimator.calibration, localizer.geometry)
                     observation, deer_box = localizer.locate(observation, (shape[1], shape[0]))
                     draw_deer(frame, deer_box)
                     diagnostics.append("Target: DEER BODY (marker-assisted)")
@@ -314,7 +323,14 @@ def main(argv=None, on_observation=None, extra_lines=None, on_key=None):
             if observed_at - last_report >= 1:
                 print(f"Observed FPS {fps:.1f} | " + " | ".join(diagnostics))
                 last_report = observed_at
-            cv2.imshow(WINDOW, annotate(frame, [] if args.hide_marker_outline else targets, center, status, fps, diagnostics))
+            if args.display_mode == "debug":
+                display = annotate(frame, [] if args.hide_marker_outline else targets, center, status, fps, diagnostics)
+            else:
+                from .dashboard import render
+                # Reuse raw marker graphics; discard only the legacy text header.
+                marked = annotate(frame, [] if args.hide_marker_outline else targets, center, status, fps)[104:]
+                display = render(marked, observation, dashboard_state() if dashboard_state else None, fps, perf_counter())
+            cv2.imshow(WINDOW, display)
             key = cv2.waitKey(30 if failed_since is not None else 1) & 0xFF
             if on_key is not None:
                 on_key(key)

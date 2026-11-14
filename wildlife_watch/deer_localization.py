@@ -87,6 +87,36 @@ def draw_deer(frame, box):
         return
     x1, y1, x2, y2 = box
     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    # Hershey fonts support ASCII, so use a hyphen instead of an em dash.
-    cv2.putText(frame, "DEER - MARKER ASSISTED", (x1, max(18, y1-6)),
-                cv2.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1, cv2.LINE_AA)
+    # Draw an em dash as a line: OpenCV Hershey fonts have no Unicode glyph.
+    font, scale = cv2.FONT_HERSHEY_SIMPLEX, .5
+    left = cv2.getTextSize("DEER", font, scale, 1)[0][0]
+    right = cv2.getTextSize("MARKER ASSISTED", font, scale, 1)[0][0]
+    width = left + right + 28
+    x = max(2, min(x1, frame.shape[1]-width-4))
+    y = min(frame.shape[0]-6, max(20, y1-8))
+    cv2.rectangle(frame, (x-2, y-17), (min(frame.shape[1]-1, x+width+2), y+5), (22, 28, 22), -1)
+    cv2.putText(frame, "DEER", (x, y), font, scale, (0, 255, 0), 1, cv2.LINE_AA)
+    cv2.line(frame, (x+left+6, y-5), (x+left+20, y-5), (0, 255, 0), 1, cv2.LINE_AA)
+    cv2.putText(frame, "MARKER ASSISTED", (x+left+28, y), font, scale, (0, 255, 0), 1, cv2.LINE_AA)
+
+
+def draw_geometry_debug(frame, marker, calibration, geometry):
+    """Show canonical marker axes and measured box-center direction, not pixel offsets."""
+    if not marker.pose_valid or marker.marker_rvec is None or marker.marker_tvec_cm is None:
+        return
+    points = np.array([[0., 0., 0.], [3., 0., 0.], [0., 3., 0.],
+                       geometry.center_marker_cm], dtype=np.float64)
+    rvec, tvec = np.asarray(marker.marker_rvec), np.asarray(marker.marker_tvec_cm)
+    rotation, _ = cv2.Rodrigues(rvec)
+    if np.any((points @ rotation.T + tvec)[:, 2] <= 0):
+        return
+    pixels, _ = cv2.projectPoints(points, rvec, tvec, calibration.matrix, calibration.distortion)
+    pixels = pixels.reshape(-1, 2)
+    if not np.isfinite(pixels).all() or np.max(np.abs(pixels)) > 1e6:
+        return
+    origin, x_axis, y_axis, center = [tuple(np.rint(p).astype(int)) for p in pixels]
+    for end, label, color in ((x_axis, "+X marker", (0, 0, 255)),
+                              (y_axis, "+Y marker", (255, 200, 0)),
+                              (center, "configured body center", (0, 255, 0))):
+        cv2.arrowedLine(frame, origin, end, color, 2, tipLength=.15)
+        cv2.putText(frame, label, end, cv2.FONT_HERSHEY_SIMPLEX, .4, color, 1, cv2.LINE_AA)

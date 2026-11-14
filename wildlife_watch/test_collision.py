@@ -120,7 +120,7 @@ class CollisionTests(unittest.TestCase):
         from . import collision_demo
         seen = []
 
-        def fake_camera(argv, on_observation, extra_lines, on_key):
+        def fake_camera(argv, on_observation, extra_lines, on_key, dashboard_state=None):
             demo = on_observation.__self__
             seen.append(demo)
             on_observation(None)
