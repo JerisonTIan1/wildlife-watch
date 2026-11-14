@@ -15,6 +15,30 @@ void armAndDrive(Controller& c, uint32_t now = 0) {
 int main() {
   {
     Controller c;
+    send(c, "V1,1,SPEED,25\n", 0);
+    assert(c.state == State::DISARMED);
+    send(c, "V1,2,ARM\nV1,3,SPEED,25\n", 0);
+    assert(c.state == State::DRIVE);
+    for (auto duty : c.intent().duty) assert(duty == 64);
+    send(c, "V1,4,SPEED,100\n", 100);
+    for (auto duty : c.intent().duty) assert(duty == 255);
+    c.tick(599); assert(c.state == State::DRIVE);
+    send(c, "V1,5,SPEED,50\n", 600);
+    assert(c.state == State::FAULT_LATCHED);
+    send(c, "V1,6,DISARM\nV1,7,ARM\nV1,8,SPEED,1\n", 601);
+    for (auto duty : c.intent().duty) assert(duty == 3);
+    send(c, "V1,9,SPEED,0\nV1,10,SPEED,25\n", 602);
+    assert(c.state == State::BRAKE_LATCHED);
+    assert(c.intent().mode == OutputMode::BRAKE_REQUEST);
+  }
+  for (const auto* value : {"", "101", "-1", "+1", "1.0", "1,2", "1000", " 1"}) {
+    Controller c; armAndDrive(c);
+    send(c, std::string("V1,3,SPEED,") + value + "\n", 100);
+    assert(c.state == State::FAULT_LATCHED);
+    assert(c.lastSequence == 2);
+  }
+  {
+    Controller c;
     assert(c.intent().mode == OutputMode::DISABLED);
     send(c, "V1,1,CRUISE\n", 0);
     assert(c.state == State::DISARMED);

@@ -1,0 +1,29 @@
+{
+  "synthetic": true,
+  "collision": {
+    "vehicle_width_cm": 20,
+    "camera_to_front_cm": 10,
+    "camera_to_rear_cm": 15,
+    "target_half_width_cm": 5,
+    "target_half_depth_cm": 5,
+    "margin_cm": 5,
+    "horizon_s": 3,
+    "high_risk_s": 1,
+    "stale_s": 0.25,
+    "max_reprojection_px": 3
+  },
+  "tracking_loss": {
+    "grace_s": 0.15,
+    "capture_timeout_s": 0.075,
+    "measured_bounds": false,
+    "stopping_distance_bound_cm": null,
+    "relative_speed_bound_cm_s": null,
+    "latency_bound_s": null
+  },
+  "braking": {
+    "normal_duty": 30,
+    "slow_duty": 15,
+    "stopping_distance_cm": 15,
+    "response_delay_s": 0.1
+  }
+}

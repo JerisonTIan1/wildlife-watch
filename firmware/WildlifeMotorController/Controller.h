@@ -4,7 +4,7 @@
 #include "Config.h"
 
 namespace wildlife {
-enum class State : uint8_t { DISARMED, ARMED, CRUISE, SLOW, BRAKE_LATCHED, FAULT_LATCHED };
+enum class State : uint8_t { DISARMED, ARMED, CRUISE, SLOW, DRIVE, BRAKE_LATCHED, FAULT_LATCHED };
 enum class OutputMode : uint8_t { DISABLED, FORWARD, BRAKE_REQUEST };
 
 struct MotorIntent {
@@ -26,6 +26,7 @@ class Controller {
       case State::ARMED: return "ARMED";
       case State::CRUISE: return "CRUISE";
       case State::SLOW: return "SLOW";
+      case State::DRIVE: return "DRIVE";
       case State::BRAKE_LATCHED: return "BRAKE_LATCHED";
       case State::FAULT_LATCHED: return "FAULT_LATCHED";
     }
@@ -34,10 +35,11 @@ class Controller {
 
   MotorIntent intent() const {
     MotorIntent out = {OutputMode::DISABLED, {0, 0, 0, 0}};
-    if (state == State::CRUISE || state == State::SLOW) {
+    if (state == State::CRUISE || state == State::SLOW || state == State::DRIVE) {
       out.mode = OutputMode::FORWARD;
       for (uint8_t i = 0; i < MOTOR_COUNT; ++i)
-        out.duty[i] = state == State::CRUISE ? CRUISE_DUTY : SLOW_DUTY;
+        out.duty[i] = state == State::DRIVE ? requestedDuty_ :
+            (state == State::CRUISE ? CRUISE_DUTY : SLOW_DUTY);
     } else if (state == State::BRAKE_LATCHED || state == State::FAULT_LATCHED) {
       // Brake is an explicit intent, NEVER inferred from duty == 0.
       out.mode = OutputMode::BRAKE_REQUEST;
@@ -80,9 +82,11 @@ class Controller {
   uint8_t used_ = 0;
   bool discard_ = false;
   uint32_t lastValidMs_ = 0;
+  uint8_t requestedDuty_ = 0;
 
   bool isArmed() const {
-    return state == State::ARMED || state == State::CRUISE || state == State::SLOW;
+    return state == State::ARMED || state == State::CRUISE ||
+        state == State::SLOW || state == State::DRIVE;
   }
 
   void set(State next, const char* why) {
@@ -112,11 +116,26 @@ class Controller {
     const bool slow = strcmp(p, "SLOW") == 0;
     const bool brake = strcmp(p, "BRAKE") == 0;
     const bool fail = strcmp(p, "FAULT") == 0;
-    if (!(arm || disarm || cruise || slow || brake || fail)) {
+    const bool speed = strncmp(p, "SPEED,", 6) == 0;
+    uint16_t percent = 0;
+    if (speed) {
+      const char* value = p + 6;
+      uint8_t digits = 0;
+      while (*value >= '0' && *value <= '9' && digits < 3) {
+        percent = percent * 10 + static_cast<uint16_t>(*value++ - '0');
+        ++digits;
+      }
+      if (!digits || *value != '\0' || percent > 100) {
+        fault("BAD_COMMAND"); return;
+      }
+    }
+    if (!(arm || disarm || cruise || slow || brake || fail || speed)) {
       fault("BAD_COMMAND"); return;
     }
     lastSequence = seq;
-    if (brake) { set(State::BRAKE_LATCHED, "COMMAND"); return; }
+    if (brake || (speed && percent == 0)) {
+      set(State::BRAKE_LATCHED, "COMMAND"); return;
+    }
     if (fail) { fault("HOST_FAULT"); return; }
     if (disarm) { set(State::DISARMED, "OPERATOR"); return; }
     if (arm) {
@@ -132,7 +151,12 @@ class Controller {
       return;
     }
     lastValidMs_ = now;
-    set(cruise ? State::CRUISE : State::SLOW, "COMMAND");
+    if (speed) {
+      requestedDuty_ = static_cast<uint8_t>((percent * 255U + 50U) / 100U);
+      set(State::DRIVE, "COMMAND");
+    } else {
+      set(cruise ? State::CRUISE : State::SLOW, "COMMAND");
+    }
   }
 };
 }
