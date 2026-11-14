@@ -8,6 +8,12 @@ This hackathon prototype uses a **marker-equipped simulated reindeer**, not a tr
 
 <img width="959" height="566" alt="image" src="https://github.com/user-attachments/assets/6dfc6009-fc29-4aea-9dc3-3d723f9f64cd" />
 
+<img width="2160" height="2880" alt="image" src="https://github.com/user-attachments/assets/42a8c5b1-39fc-4c4c-845d-9425b44b9101" />
+
+<img width="2160" height="2880" alt="image" src="https://github.com/user-attachments/assets/00f96594-2d39-496b-9a29-b7c69512dd90" />
+
+
+
 
 ## What we built
 
