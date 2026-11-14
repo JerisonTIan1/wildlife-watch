@@ -6,6 +6,9 @@ Wildlife can enter a vehicle's path with little warning. Oh Deer! explores how c
 
 This hackathon prototype uses a **marker-equipped simulated reindeer**, not a trained wildlife classifier. The repository retains its original name, `wildlife-watch`, and its Python package remains `wildlife_watch`.
 
+<img width="959" height="566" alt="image" src="https://github.com/user-attachments/assets/6dfc6009-fc29-4aea-9dc3-3d723f9f64cd" />
+
+
 ## What we built
 
 - Live Logitech webcam detection of ArUco `DICT_4X4_50`, ID `0`.
